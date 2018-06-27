@@ -1,3 +1,5 @@
+//Author: Oscar Rovira (hirovi)
+
 #include <fstream>
 #include <math.h>
 #include <uWS/uWS.h>
@@ -13,9 +15,7 @@
 
 using namespace std;
 
-//Other init
-//bool once = true;
-
+//Create class car that will correspond to each of the cars in the road
 class Car {
   public:
     int id;
@@ -23,7 +23,7 @@ class Car {
     double y;
     double v;
     double s;
-    double dist_s; //Distance s from host vehicle to other vehicle
+    double dist_s; //Distance s from host vehicle to this vehicle.
     double d;
 
 };
@@ -40,6 +40,9 @@ double rad2deg(double x) { return x * 180 / pi(); }
 // Checks if the SocketIO event has JSON data.
 // If there is data the JSON object in string format will be returned,
 // else the empty string "" will be returned.
+
+//////////////////////////////Udacity helpers///////////////////////////////////
+
 string hasData(string s) {
   auto found_null = s.find("null");
   auto b1 = s.find_first_of("[");
@@ -196,8 +199,8 @@ bool small_to_big(const Car &s1, const Car &s2){
   return s1.dist_s < s2.dist_s;
 }
 
-
-vector <double> check_lane(vector<Car>cars, double car_s, int target_lane){
+//Function that returns a vector with (can_I_change lane? & distance from host to front car)
+vector <double> check_lane(vector<Car>cars, double car_s, double dist_to_front, int target_lane){
   vector<Car> target_vehicles;
   vector<double> result;
   double absolute_dist = 0.0;
@@ -210,20 +213,16 @@ vector <double> check_lane(vector<Car>cars, double car_s, int target_lane){
     }
 
   }
-  //std::cout<<1<<endl;
   //If road is empty, return "Yes, change lane"
   if(target_vehicles.size() == 0){
-    //std::cout<<1.5<<endl;
     result.push_back(1);
     result.push_back(1000);
-    //std::cout<<2<<endl;
     return result;
   }
   else{
-    //Check what is the distance between the fron and rear vehicle in target lane
-    //std::cout<<"Size target vehicles vector: "<<target_vehicles.size()<<endl;
     std::sort(target_vehicles.begin(),target_vehicles.end(), small_to_big);
-    //std::cout<<2.5<<endl;
+
+    //Check what is the distance between the front and rear vehicle in target lane
     vector <double> negatives;
     vector <double> positives;
     for (int i=0; i<target_vehicles.size(); i++){
@@ -234,14 +233,17 @@ vector <double> check_lane(vector<Car>cars, double car_s, int target_lane){
         positives.push_back(target_vehicles[i].dist_s);
       }
     }
-    //std::cout<<3<<endl;
 
     //When there are no cars in front but there is one behind
     if(positives.size()==0){
       double car_behind = abs(negatives.back());
-      std::cout<<4<<endl;
       if(car_behind>5){
         result.push_back(1);
+        result.push_back(1000);
+        return result;
+      }
+      else{
+        result.push_back(0);
         result.push_back(1000);
         return result;
       }
@@ -250,9 +252,13 @@ vector <double> check_lane(vector<Car>cars, double car_s, int target_lane){
     //When there are no cars behind but there is one in front
     else if(negatives.size()==0){
       double car_front = positives[0];
-      std::cout<<5<<endl;
-      if(car_front>32){
+      if(car_front>dist_to_front){
         result.push_back(1);
+        result.push_back(car_front);
+        return result;
+      }
+      else{
+        result.push_back(0);
         result.push_back(car_front);
         return result;
       }
@@ -261,29 +267,23 @@ vector <double> check_lane(vector<Car>cars, double car_s, int target_lane){
       //When there are cars in front and behind
       double car_behind = abs(negatives.back());
       double car_front = positives[0];
-      //std::cout<<"Car_front: "<<car_front<<endl;
-      //std::cout<<"Car_behind: "<<car_behind<<endl;
-      //double abs_dist = car_front + car_behind;
-      std::cout<<6<<endl;
-      if(car_front > 32 && car_behind>5){
+      if(car_front > dist_to_front && car_behind>5){
         //return a True, saying, yes change, and also state distance to the front car.
         result.push_back(1);
         result.push_back(car_front);
-        std::cout<<7<<endl;
         return result;
-        //std::cout<<7.5<<endl;
+
       }
       else{
         result.push_back(0);
         result.push_back(car_front);
-        std::cout<<8<<endl;
         return result;
       }
     }
   }
 
 }
-
+////////////////////////////////////////////////////////////////////////////////
 
 int main() {
   uWS::Hub h;
@@ -324,7 +324,6 @@ int main() {
 
 
   bool change_lane = false;
-  //Start lane
   int host_lane = 1;
   double ref_vel = 0;
 
@@ -365,11 +364,8 @@ int main() {
           	// Sensor Fusion Data, a list of all other cars on the same side of the road.
           	auto sensor_fusion = j[1]["sensor_fusion"];
 
-          	json msgJson;
-
 ////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////TASK//////////////////////////////////////////
-
 
 //-----------------------------Debugging--------------------------------------//
 
@@ -387,15 +383,17 @@ int main() {
             // }
 
 //-------------------------------Init-----------------------------------------//
+//About: Set the gradual initial speed so that the car slowly reaches target speed
 
             int prev_size = previous_path_x.size();
 
             //Gradually increment speed without crossing acc./jerk limit
-            if (ref_vel<49.1 && change_lane==false){
+            if (ref_vel<=49 && change_lane==false){
               ref_vel +=0.9;
             }
 
 //---------------------------Sensor Fusion------------------------------------//
+//About: Store all the data from the sensor_fusion array into a car class.
             //[id, x, y, vx, vy, s, d]
             vector<Car> cars;
             for(int i=0; i<sensor_fusion.size(); i++){
@@ -413,11 +411,16 @@ int main() {
             }
 
 //---------------------------Crash Avoider------------------------------------//
+//About: Check distance from car to front car and reduce velocity accordingly.
+//       Check safe distance and velocity diference
+//       By doing velocity difference, the transition of slowing down is smoother.
+//       Tried different methods. BUt the ideal would be a PID.
 
             vector <Car> front_cars;
             int safe_distance = 30;
             host_lane = what_lane(car_d);
-            std::cout<<host_lane<<endl;
+            double dist_to_front = 0.0;
+
             for(int i=0; i<cars.size(); i++){
               int car_lane = what_lane(cars[i].d);
 
@@ -430,87 +433,37 @@ int main() {
             }
             if (front_cars.size()>0){
               std::sort(front_cars.begin(),front_cars.end(), small_to_big);
-              std::cout<<front_cars[0].dist_s<<endl;
-              //Check safe distance and velocity diference
-              //By doing velocity difference, the transition of slowing down is
-              //smoother.
-              //Tried different methods, even with a proportion to distance.
-              //Ideally would be to build a PID to control the speed.
+              dist_to_front = front_cars[0].dist_s;
 
-              if(front_cars[0].dist_s < safe_distance){
+              if(dist_to_front < safe_distance){
                 change_lane = true;
                 if(ref_vel > front_cars[0].v){
                   ref_vel-=0.25;
                 }
               }
               else{change_lane = false;
-              std::cout<<"I'm here"<<endl;}
+              }
             }
             //Don't change lane if there are no cars in front
             else{change_lane = false;
-            std::cout<<"For some readon I'm here"<<endl;}
-            //std::cout<<host_lane
+            }
+
 
 //---------------------------Lane Changer-------------------------------------//
-            //What lane should I change to?
-            //If I'm on the left lane I can only turn right,
-            //If I'm in the middle I can choose, and so on...
-            //Parameters in consideration:
-            //dist_s
-            //speed difference
-            //
-            // bool change_left = false;
-            // bool change_right = false;
-            //
-            // //std::cout<<host_lane<<endl;
-            // if(change_lane == true){
-            //
-            //
-            //   if (host_lane == 0){
-            //     change_right = check_lane(cars, car_s, 1);
-            //   }
-            //   else if (host_lane == 1){
-            //     change_left = check_lane(cars, car_s, 0);
-            //     change_right = check_lane(cars, car_s, 2);
-            //   }
-            //   else if (host_lane == 2){
-            //     change_left = check_lane(cars, car_s, 1);
-            //   }
-            //
-            //
-            //
-            //   if (change_left == true && host_lane == 1){
-            //     lane=0;
-            //     change_left = false;
-            //   }
-            //   if (change_left == true && host_lane == 2){
-            //     lane=1;
-            //     change_left = false;
-            //   }
-            //   if (change_right == true && host_lane == 0){
-            //     lane=1;
-            //     change_right = false;
-            //   }
-            //   if (change_right == true && host_lane == 1){
-            //     lane=2;
-            //     change_right = false;
-            //   }
-            // }
-            //Need to init otherwise it will crash after in the if conditions
+//About: Call function "check_lane" to flag when is legal to change lane.
+
             vector<double> change_left {0, 0};
             vector<double> change_right {0, 0};
 
-
-            //std::cout<<host_lane<<endl;
             if(change_lane == true){
 
               if (host_lane == 0){
-                change_right = check_lane(cars, car_s, 1);
+                change_right = check_lane(cars, car_s, dist_to_front, 1);
                 if(change_right[0] == true){host_lane=1;}
               }
               else if (host_lane == 1){
-                change_left = check_lane(cars, car_s, 0);
-                change_right = check_lane(cars, car_s, 2);
+                change_left = check_lane(cars, car_s, dist_to_front, 0);
+                change_right = check_lane(cars, car_s, dist_to_front, 2);
 
                 if(change_left[0] == true && change_right[0] == false){
                   host_lane=0;
@@ -521,4 +474,195 @@ int main() {
                 }
 
                 else if (change_left[0] == true && change_right[0] == true){
-                  if(change_left[1] > change_right[1]){hos
+                  if(change_left[1] > change_right[1]){host_lane=0;}
+                  else{host_lane=2;}
+                }
+              }
+
+              else if (host_lane==2){
+                change_left = check_lane(cars, car_s, dist_to_front, 1);
+                if(change_left[0] == true){host_lane=1;}
+              }
+            }
+
+//--------------------------Spline Creation----------------------------------//
+//About: Create 5 points that the Spline will use to generate the function that
+//       will connect(See next block) such points in a smooth and sexy way.
+
+
+            // Create a set of points (x,y)
+      			vector<double> ptsx;
+      			vector<double> ptsy;
+
+      			// Reference x, y, yaw states
+      			double ref_x = car_x;
+      			double ref_y = car_y;
+      			double ref_yaw = deg2rad(car_yaw);
+
+      			// If previous size is almost empty, use the car as starting reference
+      			if (prev_size < 2) {
+      				// Use two points that make the path tangent to the car
+      				double prev_car_x = car_x - cos(car_yaw);
+      				double prev_car_y = car_y - sin(car_yaw);
+
+      				ptsx.push_back(prev_car_x);
+      				ptsx.push_back(car_x);
+
+      				ptsy.push_back(prev_car_y);
+      				ptsy.push_back(car_y);
+      			} else {
+
+      				// Use last points from previous path
+      				ref_x = previous_path_x[prev_size-1];
+      				ref_y = previous_path_y[prev_size-1];
+
+      				// Use before the last point from previous path
+      				double prev_ref_x = previous_path_x[prev_size-2];
+      				double prev_ref_y = previous_path_y[prev_size-2];
+      				ref_yaw = atan2(ref_y-prev_ref_y, ref_x-prev_ref_x);
+
+      				ptsx.push_back(prev_ref_x);
+      				ptsx.push_back(ref_x);
+
+      				ptsy.push_back(prev_ref_y);
+      				ptsy.push_back(ref_y);
+      			}
+
+            vector<double> next_wp0;
+      			vector<double> next_wp1;
+      			vector<double> next_wp2;
+
+            if(change_lane!=true){
+      			// Using Frenet, add 30 m evenly spaced points ahead of the starting reference
+      			  next_wp0 = getXY(car_s+30, (2+4*host_lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+      			  next_wp1 = getXY(car_s+60, (2+4*host_lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+      			  next_wp2 = getXY(car_s+90, (2+4*host_lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            }
+            else{
+              next_wp0 = getXY(car_s+55, (2+4*host_lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+        		  next_wp1 = getXY(car_s+60, (2+4*host_lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+        		  next_wp2 = getXY(car_s+90, (2+4*host_lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            }
+
+
+      			ptsx.push_back(next_wp0[0]);
+      			ptsx.push_back(next_wp1[0]);
+      			ptsx.push_back(next_wp2[0]);
+
+      			ptsy.push_back(next_wp0[1]);
+      			ptsy.push_back(next_wp1[1]);
+      			ptsy.push_back(next_wp2[1]);
+
+            //Go from global to local coordinates so that x0=0, y0=0 and yaw=0
+      			for (int i = 0; i < ptsx.size(); i++) {
+      				// Shift car reference angle to 0 degrees
+      				double shift_x = ptsx[i] - ref_x;
+      				double shift_y = ptsy[i] - ref_y;
+
+      				ptsx[i] = (shift_x * cos(0-ref_yaw) - shift_y * sin(0-ref_yaw));
+      				ptsy[i] = (shift_x * sin(0-ref_yaw) + shift_y * cos(0-ref_yaw));
+      			}
+      			// Create a spline called s
+      			tk::spline s;
+
+            // Set (x,y) points to the spline
+      			s.set_points(ptsx, ptsy);
+
+
+//----------------------------Waypoint Planner--------------------------------//
+//About: Create each of the individual points in x that the car fill follow and
+//       feed them into the spline function to look for the corresponding y
+
+      			// Define the actual (x,y) points we will use for the planner
+      			vector<double> next_x_vals;
+      			vector<double> next_y_vals;
+
+      			// Start with all the previous path points from last time
+      			for (int i = 0; i < previous_path_x.size(); i++) {
+      				next_x_vals.push_back(previous_path_x[i]);
+      				next_y_vals.push_back(previous_path_y[i]);
+      			}
+
+      			// Compute how to break up spline points so we travel at our desired reference velocity
+      			double target_x = 30.0;
+      			double target_y = s(target_x);
+      			double target_dist = sqrt((target_x) * (target_x) + (target_y) * (target_y));
+      			double x_add_on = 0;
+
+      			// Fill up the rest of the path planner to always output 50 points
+      			for (int i = 1; i <= 50 - previous_path_x.size(); i++) {
+      				double N = (target_dist/(.02*ref_vel/2.24));
+      				double x_point = x_add_on + (target_x) / N;
+              //Finally use the spline to look for the xy points
+      				double y_point = s(x_point);
+
+      				x_add_on = x_point;
+
+      				double x_ref = x_point;
+      				double y_ref = y_point;
+
+      				// Go back to local coordinates
+      				x_point = (x_ref * cos(ref_yaw) - y_ref*sin(ref_yaw));
+      				y_point = (x_ref * sin(ref_yaw) + y_ref*cos(ref_yaw));
+
+      				x_point += ref_x;
+      				y_point += ref_y;
+
+      				next_x_vals.push_back(x_point);
+      				next_y_vals.push_back(y_point);
+            }
+
+///////////////////////////////END//////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+            json msgJson;
+
+          	msgJson["next_x"] = next_x_vals;
+          	msgJson["next_y"] = next_y_vals;
+
+          	auto msg = "42[\"control\","+ msgJson.dump()+"]";
+
+          	//this_thread::sleep_for(chrono::milliseconds(1000));
+          	ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
+
+        }
+      } else {
+        // Manual driving
+        std::string msg = "42[\"manual\",{}]";
+        ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
+      }
+    }
+  });
+
+  // We don't need this since we're not using HTTP but if it's removed the
+  // program
+  // doesn't compile :-(
+  h.onHttpRequest([](uWS::HttpResponse *res, uWS::HttpRequest req, char *data,
+                     size_t, size_t) {
+    const std::string s = "<h1>Hello world!</h1>";
+    if (req.getUrl().valueLength == 1) {
+      res->end(s.data(), s.length());
+    } else {
+      // i guess this should be done more gracefully?
+      res->end(nullptr, 0);
+    }
+  });
+
+  h.onConnection([&h](uWS::WebSocket<uWS::SERVER> ws, uWS::HttpRequest req) {
+    std::cout << "Connected!!!" << std::endl;
+  });
+
+  h.onDisconnection([&h](uWS::WebSocket<uWS::SERVER> ws, int code,
+                         char *message, size_t length) {
+    ws.close();
+    std::cout << "Disconnected" << std::endl;
+  });
+
+  int port = 4567;
+  if (h.listen(port)) {
+    std::cout << "Listening to port " << port << std::endl;
+  } else {
+    std::cerr << "Failed to listen to port" << std::endl;
+    return -1;
+  }
+  h.run();
+}
