@@ -204,7 +204,7 @@ vector <double> check_lane(vector<Car>cars, double car_s, double dist_to_front, 
   vector<Car> target_vehicles;
   vector<double> result;
   double absolute_dist = 0.0;
-  std::cout<<0<<endl;
+
   for(int i=0; i<cars.size(); i++){
     int car_lane = what_lane(cars[i].d);
 
