@@ -502,82 +502,82 @@ int main() {
 
 
             // Create a set of points (x,y)
-      			vector<double> ptsx;
-      			vector<double> ptsy;
+		vector<double> ptsx;
+		vector<double> ptsy;
 
-      			// Reference x, y, yaw states
-      			double ref_x = car_x;
-      			double ref_y = car_y;
-      			double ref_yaw = deg2rad(car_yaw);
+		// Reference x, y, yaw states
+		double ref_x = car_x;
+		double ref_y = car_y;
+		double ref_yaw = deg2rad(car_yaw);
 
-      			// If previous size is almost empty, use the car as starting reference
-      			if (prev_size < 2) {
-      				// Use two points that make the path tangent to the car
-      				double prev_car_x = car_x - cos(car_yaw);
-      				double prev_car_y = car_y - sin(car_yaw);
+		// If previous size is almost empty, use the car as starting reference
+		if (prev_size < 2) {
+			// Use two points that make the path tangent to the car
+			double prev_car_x = car_x - cos(car_yaw);
+			double prev_car_y = car_y - sin(car_yaw);
 
-      				ptsx.push_back(prev_car_x);
-      				ptsx.push_back(car_x);
+			ptsx.push_back(prev_car_x);
+			ptsx.push_back(car_x);
 
-      				ptsy.push_back(prev_car_y);
-      				ptsy.push_back(car_y);
-      			} else {
+			ptsy.push_back(prev_car_y);
+			ptsy.push_back(car_y);
+		} else {
 
-      				// Use last points from previous path
-      				ref_x = previous_path_x[prev_size-1];
-      				ref_y = previous_path_y[prev_size-1];
+			// Use last points from previous path
+			ref_x = previous_path_x[prev_size-1];
+			ref_y = previous_path_y[prev_size-1];
 
-      				// Use before the last point from previous path
-      				double prev_ref_x = previous_path_x[prev_size-2];
-      				double prev_ref_y = previous_path_y[prev_size-2];
-      				ref_yaw = atan2(ref_y-prev_ref_y, ref_x-prev_ref_x);
+			// Use before the last point from previous path
+			double prev_ref_x = previous_path_x[prev_size-2];
+			double prev_ref_y = previous_path_y[prev_size-2];
+			ref_yaw = atan2(ref_y-prev_ref_y, ref_x-prev_ref_x);
 
-      				ptsx.push_back(prev_ref_x);
-      				ptsx.push_back(ref_x);
+			ptsx.push_back(prev_ref_x);
+			ptsx.push_back(ref_x);
 
-      				ptsy.push_back(prev_ref_y);
-      				ptsy.push_back(ref_y);
-      			}
+			ptsy.push_back(prev_ref_y);
+			ptsy.push_back(ref_y);
+		}
 
-            vector<double> next_wp0;
-      			vector<double> next_wp1;
-      			vector<double> next_wp2;
+	vector<double> next_wp0;
+		vector<double> next_wp1;
+		vector<double> next_wp2;
 
-            if(change_lane!=true){
-      			// Using Frenet, add 30 m evenly spaced points ahead of the starting reference
-      			  next_wp0 = getXY(car_s+30, (2+4*host_lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-      			  next_wp1 = getXY(car_s+60, (2+4*host_lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-      			  next_wp2 = getXY(car_s+90, (2+4*host_lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-            }
-            else{
-              next_wp0 = getXY(car_s+55, (2+4*host_lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-        		  next_wp1 = getXY(car_s+60, (2+4*host_lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-        		  next_wp2 = getXY(car_s+90, (2+4*host_lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-            }
+	if(change_lane!=true){
+		// Using Frenet, add 30 m evenly spaced points ahead of the starting reference
+		  next_wp0 = getXY(car_s+30, (2+4*host_lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+		  next_wp1 = getXY(car_s+60, (2+4*host_lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+		  next_wp2 = getXY(car_s+90, (2+4*host_lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+	}
+	else{
+		  next_wp0 = getXY(car_s+55, (2+4*host_lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+		  next_wp1 = getXY(car_s+60, (2+4*host_lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+		  next_wp2 = getXY(car_s+90, (2+4*host_lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+	}
 
 
-      			ptsx.push_back(next_wp0[0]);
-      			ptsx.push_back(next_wp1[0]);
-      			ptsx.push_back(next_wp2[0]);
+		ptsx.push_back(next_wp0[0]);
+		ptsx.push_back(next_wp1[0]);
+		ptsx.push_back(next_wp2[0]);
 
-      			ptsy.push_back(next_wp0[1]);
-      			ptsy.push_back(next_wp1[1]);
-      			ptsy.push_back(next_wp2[1]);
+		ptsy.push_back(next_wp0[1]);
+		ptsy.push_back(next_wp1[1]);
+		ptsy.push_back(next_wp2[1]);
 
-            //Go from global to local coordinates so that x0=0, y0=0 and yaw=0
-      			for (int i = 0; i < ptsx.size(); i++) {
-      				// Shift car reference angle to 0 degrees
-      				double shift_x = ptsx[i] - ref_x;
-      				double shift_y = ptsy[i] - ref_y;
+        //Go from global to local coordinates so that x0=0, y0=0 and yaw=0
+	for (int i = 0; i < ptsx.size(); i++) {
+		// Shift car reference angle to 0 degrees
+		double shift_x = ptsx[i] - ref_x;
+		double shift_y = ptsy[i] - ref_y;
 
-      				ptsx[i] = (shift_x * cos(0-ref_yaw) - shift_y * sin(0-ref_yaw));
-      				ptsy[i] = (shift_x * sin(0-ref_yaw) + shift_y * cos(0-ref_yaw));
-      			}
-      			// Create a spline called s
-      			tk::spline s;
+		ptsx[i] = (shift_x * cos(0-ref_yaw) - shift_y * sin(0-ref_yaw));
+		ptsy[i] = (shift_x * sin(0-ref_yaw) + shift_y * cos(0-ref_yaw));
+	}
+	// Create a spline called s
+	tk::spline s;
 
-            // Set (x,y) points to the spline
-      			s.set_points(ptsx, ptsy);
+	// Set (x,y) points to the spline
+	s.set_points(ptsx, ptsy);
 
 
 //----------------------------Waypoint Planner--------------------------------//
