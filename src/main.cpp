@@ -28,7 +28,6 @@ class Car {
 
 };
 
-
 // for convenience
 using json = nlohmann::json;
 
@@ -59,7 +58,8 @@ double distance(double x1, double y1, double x2, double y2)
 {
 	return sqrt((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1));
 }
-int ClosestWaypoint(double x, double y, const vector<double> &maps_x, const vector<double> &maps_y)
+int ClosestWaypoint(double x, double y, const vector<double> &maps_x,
+                    const vector<double> &maps_y)
 {
 
 	double closestLen = 100000; //large number
@@ -82,7 +82,8 @@ int ClosestWaypoint(double x, double y, const vector<double> &maps_x, const vect
 
 }
 
-int NextWaypoint(double x, double y, double theta, const vector<double> &maps_x, const vector<double> &maps_y)
+int NextWaypoint(double x, double y, double theta, const vector<double> &maps_x,
+                 const vector<double> &maps_y)
 {
 
 	int closestWaypoint = ClosestWaypoint(x,y,maps_x,maps_y);
@@ -108,7 +109,8 @@ int NextWaypoint(double x, double y, double theta, const vector<double> &maps_x,
 }
 
 // Transform from Cartesian x,y coordinates to Frenet s,d coordinates
-vector<double> getFrenet(double x, double y, double theta, const vector<double> &maps_x, const vector<double> &maps_y)
+vector<double> getFrenet(double x, double y, double theta, const vector<double> &maps_x,
+                        const vector<double> &maps_y)
 {
 	int next_wp = NextWaypoint(x,y, theta, maps_x,maps_y);
 
@@ -157,7 +159,8 @@ vector<double> getFrenet(double x, double y, double theta, const vector<double> 
 }
 
 // Transform from Frenet s,d coordinates to Cartesian x,y
-vector<double> getXY(double s, double d, const vector<double> &maps_s, const vector<double> &maps_x, const vector<double> &maps_y)
+vector<double> getXY(double s, double d, const vector<double> &maps_s,
+                     const vector<double> &maps_x, const vector<double> &maps_y)
 {
 	int prev_wp = -1;
 
@@ -239,7 +242,7 @@ vector <double> check_lane(vector<Car>cars, double car_s, double dist_to_front, 
       double car_behind = abs(negatives.back());
       if(car_behind>5){
         result.push_back(1);
-        result.push_back(1000);
+        result.push_back(1002);
         return result;
       }
       else{
@@ -327,8 +330,9 @@ int main() {
   int host_lane = 1;
   double ref_vel = 0;
 
-  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy, &host_lane, &ref_vel, &change_lane](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
-                     uWS::OpCode opCode) {
+  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,
+               &map_waypoints_dy, &host_lane, &ref_vel, &change_lane]
+               (uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
@@ -434,7 +438,7 @@ int main() {
             if (front_cars.size()>0){
               std::sort(front_cars.begin(),front_cars.end(), small_to_big);
               dist_to_front = front_cars[0].dist_s;
-
+              std::cout<<dist_to_front<<endl;
               if(dist_to_front < safe_distance){
                 change_lane = true;
                 if(ref_vel > front_cars[0].v){
@@ -454,6 +458,7 @@ int main() {
 
             vector<double> change_left {0, 0};
             vector<double> change_right {0, 0};
+            double diff_abs = 0.0;
 
             if(change_lane == true){
 
@@ -474,8 +479,14 @@ int main() {
                 }
 
                 else if (change_left[0] == true && change_right[0] == true){
-                  if(change_left[1] > change_right[1]){host_lane=0;}
-                  else{host_lane=2;}
+                  //To avoid uncertainty & wabbling when changing lanes & Distance
+                  //to front cars  are similar.
+                  diff_abs = abs(change_left[1]-change_right[1]);
+                  if(diff_abs>1.5){
+                    if(change_left[1] >= change_right[1]){host_lane=0;}
+                    else{host_lane=2;}
+                  }
+                  else{host_lane=1;}
                 }
               }
 
