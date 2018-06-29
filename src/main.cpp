@@ -438,7 +438,7 @@ int main() {
             if (front_cars.size()>0){
               std::sort(front_cars.begin(),front_cars.end(), small_to_big);
               dist_to_front = front_cars[0].dist_s;
-              std::cout<<dist_to_front<<endl;
+              std::cout<<"Distance to front car: "<<dist_to_front<<" m"<<endl;
               if(dist_to_front < safe_distance){
                 change_lane = true;
                 if(ref_vel > front_cars[0].v){
@@ -450,6 +450,7 @@ int main() {
             }
             //Don't change lane if there are no cars in front
             else{change_lane = false;
+              std::cout<<"Distance to front car: "<<"too far"<<endl;
             }
 
 
