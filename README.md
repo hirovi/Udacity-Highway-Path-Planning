@@ -11,7 +11,7 @@ Every 20ms the simulator reaches the program asking "to what point should I go n
 The vehicle choses either to continue in the same lane or to change according to the feasibility of reaching its target speed of 50mph. When the vehicle detects that the front car is too close either slows down or checks whether changing lane is possible. The legality of changing road is determined according to the postion of the other vehicles in their respective lanes, when legal to change lane, the car create a new spline that allows to smootlhy change of lane(this is accomplished by spacing-out more the points).
 
 ## Improvements
-Would be super cool to create a neural net where you feed the sensor fusion data and it outputs the position at each timestamp. Maybe a RNN would be more ideal...
+Would be cool to create a neural net where you feed the sensor fusion data and it outputs the position at each timestamp. Maybe a RNN would be more ideal...
 
 ## Result
 The car is able to drive at least 4.32 miles without any incident. Driving according to the speed limit without braking the max acceleration and jerk limits.The car doesn't collide and it's able to succesfully change lanes when required.
